@@ -1,0 +1,14 @@
+# Prebuilt libraries this project consumes, one per line:
+#
+#   <release tag>  <asset file name>  <sha256>
+#
+# The asset is attached to the GitHub Release with that tag. fetch-assets.sh
+# downloads each one and refuses to continue if its checksum differs from the
+# one committed here, so changing a tarball means a new release AND a commit
+# to this file -- never a silent re-upload.
+#
+# Every *.tar.gz fetched is unpacked at / in the image (see Dockerfile), so the
+# directory each tarball unpacks to is the path consumers COPY from.
+
+giapi-glue-cc-rocky8-2024.04  giapi-gluecc_rocky8.tar.gz        a381e9cea6a1989cd762022b21794102faa6935a070a8c6fe3bb872cd91fa761
+gmp-server-0.2.6              gmp-server-0.2.6-SNAPSHOT.tar.gz  48b1283fb578ee5dc552d03470763ecb856054416fbf99a930fced05f9934417

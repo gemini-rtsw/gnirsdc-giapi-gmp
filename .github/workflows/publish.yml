@@ -1,0 +1,61 @@
+name: Publish image
+
+# Builds the carrier image from the release assets listed in RELEASES and, on
+# main, pushes it as ghcr.io/<repo>:<VERSION> and :git-<sha>.
+#
+# A pull request fetches, verifies and builds, but pushes nothing.
+on:
+  push:
+    branches: [main]
+    paths: [RELEASES, VERSION, Dockerfile, fetch-assets.sh, .github/workflows/publish.yml]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and verify release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./fetch-assets.sh
+
+      - name: Build
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          VERSION="$(cat VERSION)"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          docker build --platform linux/amd64 \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            -t "$IMAGE:$VERSION" -t "$IMAGE:git-${GITHUB_SHA::7}" .
+
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        run: |
+          # A published VERSION is what consumers pin, so it is never
+          # overwritten: changing RELEASES or the Dockerfile without bumping
+          # VERSION fails here rather than changing what an existing pin pulls.
+          if docker manifest inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            echo "::error::$IMAGE:$VERSION already exists. Bump VERSION to publish a new image."
+            exit 1
+          fi
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:git-${GITHUB_SHA::7}"
